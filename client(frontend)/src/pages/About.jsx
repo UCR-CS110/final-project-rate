@@ -1,6 +1,7 @@
 export default function About() {
     return(
         <div className = "container">
+            <br></br>
             <h1>About Us</h1>
             <p>Rate is a platform for users to review and rate professors.
                 Unlike other platforms, rate uses several variables to calculate a professor 

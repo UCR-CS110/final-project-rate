@@ -4,6 +4,7 @@ import Navbar from './Navbar.jsx'
 import Home from './pages/Home.jsx'
 import About from './pages/About.jsx'
 import Login from './pages/Login.jsx'
+import Search from './pages/Search.jsx'
 
 function App() {
   let component
@@ -16,6 +17,9 @@ function App() {
       break
     case "/login":
       component = <Login/>
+      break
+    case "/search":
+      component = <Search/>
       break
   }
   return (
