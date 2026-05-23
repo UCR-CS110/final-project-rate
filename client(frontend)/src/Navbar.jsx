@@ -10,6 +10,9 @@ export default function Navbar() {
                 <li>
                     <a href= "/about" className="subTitle">About</a>
                 </li>
+                <li>
+                    <a href= "/admin/" className="subTitle">Admin</a>
+                </li>
             </ul>
         </nav>
     )

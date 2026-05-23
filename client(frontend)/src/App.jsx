@@ -5,6 +5,8 @@ import Home from './pages/Home.jsx'
 import About from './pages/About.jsx'
 import Login from './pages/Login.jsx'
 import Search from './pages/Search.jsx'
+import Signup from './pages/Signup.jsx'
+import Admin from './pages/Admin.jsx'
 
 function App() {
   let component
@@ -18,9 +20,18 @@ function App() {
     case "/login":
       component = <Login/>
       break
+    case "/signup":
+      component = <Signup/>
+      break
     case "/search":
       component = <Search/>
       break
+    case "/admin":
+    case "/admin/":
+      component = <Admin/>
+      break
+    default:
+      component = <Home/>
   }
   return (
     <>

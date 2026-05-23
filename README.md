@@ -1,54 +1,164 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/c4wSHrp5)
-[![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-2e0aaae1b6195c2367325f4f02e2d04e9abb55f0b24a779b69b11b9e10269abc.svg)](https://classroom.github.com/online_ide?assignment_repo_id=23816622&assignment_repo_type=AssignmentRepo)
+# Rate
 
+Rate is a web-based platform for students to share and access information about professors and courses. The goal is to help students make better course selection decisions by showing professor information, course information, ratings, and peer reviews in one place.
 
-Phase 1: Proposal
-Team Members: Tanner Watamura, Leo Zhou, William Chen
-Project Description
-Rate is a web-based platform designed for students to share and access information about professors and courses. It provides core functionalities such as searching for professors, submitting multi-criteria ratings, and reading or posting peer-generated reviews. By aggregating this user-generated data, the platform creates a transparent and reliable information ecosystem that reduces information asymmetry, helps students make better course selection decisions, and ultimately improves their academic planning and overall studying experience.
+## Team Members
 
-Core Specifications
-User Profiling:
-Students: Profiles will include major, year, and a history of reviews posted.
-Professors: Profiles will display aggregate ratings, "top tags" for example: Tough Grader, Amazing Lectures, etc), and a list of courses taught.
-Authentication & Authorization:
-Standard Auth: Secure password-based login.
-3rd Party Auth: Implementation of Google Sign-In
-Roles: Students can rate/comment, while the Professor can claim a profile/respond to reviews, and Admin can moderate content.
-Social Network:
-An "Upvote/Downvote" system for reviews to establish a reputation-based social hierarchy of "Helpful Reviewers."
-Users can view reviewer profiles and review comment history of other reviewers.
-Rating and Commenting:
-Multi-metric rating system (Scale of 1-5 for Difficulty, Quality, and Engagement).
-Text-based comments for qualitative feedback.
-Search and Recommendation System:
-Search: Filter by department, name, or course code.
-Smart Recommendation: When viewing a professor, the system will suggest "Similar Professors" in the same department or those who teach the same course, ranked by rating.
-Admin Functionalities:
-Dashboard to flag/delete inappropriate reviews.
-Tools to bulk-import professor data to initialize the database.
+- Tanner Watamura
+- Leo Zhou
+- William Chen
 
-Revised Technical Architecture (Node.js & MongoDB)
-Backend Framework: We will use Node.js with the Express.js web framework to handle routing and middleware.
-Database: MongoDB will be our primary database, utilizing Mongoose as our ODM (Object Data Modeling) library to manage schemas for Professors, Reviews, and Users.
-Authentication:
-Local: Passport.js with a local strategy for encrypted password storage.
-3rd Party: Passport-Google-OAuth20 to allow students to log in using their emails or student emails if they prefer.
-Security Implementation:
-NoSQL Injection: We will use Mongoose to enforce strict schemas and some middleware to remove dangerous MongoDB operators
-Rate limiting to prevent spam reviews
+## Tools Used
 
-Project Plan & Task Allocation
-Meeting Schedule: We plan to meet weekly on monday after lab sessions and use Slack for daily coordination.
-Division of Labor:
-William: Authentication, roles, profiles, admin, security
- Tanner: Frontend, UI/UX, social features, search/review interface
- Leo: Database, review backend, professor model, search/recommendation logic
+- **Frontend:** React with Vite
+- **Backend:** Node.js with Express.js
+- **Database:** MongoDB Atlas
+- **Database library:** Mongoose
+- **Authentication/session support:** Express Session
+- **Password security:** bcrypt
+- **Environment variables:** dotenv
+- **Frontend forms:** react-hook-form
+- **Development tools:** npm, Git, GitHub
 
-Project Challenges
-Asynchronous Flow: Managing complex asynchronous operations (like calculating a professor's aggregate rating while fetching reviews) 
-Data Consistency: Ensuring that when a student deletes their account, their reviews are handled correctly (either deleted or anonymized) within our NoSQL structure.
-Not very familiar with those required tech stack
+## Project Structure
 
-<img width="624" height="374" alt="Screenshot 2026-04-27 at 11 18 38 AM" src="https://github.com/user-attachments/assets/cdd51b24-eb4b-4b82-8800-501238d788f9" />
-<img width="623" height="333" alt="Screenshot 2026-04-27 at 11 19 04 AM" src="https://github.com/user-attachments/assets/a6f33215-f290-471a-b67b-b13d9cae0dd0" />
+```txt
+final-project-rate/
+  client(frontend)/   React frontend
+  server/             Node/Express backend
+```
+
+## How To Run The Project
+
+### 1. Clone the repository
+
+```bash
+git clone <repo-url>
+cd final-project-rate
+```
+
+### 2. Install frontend dependencies
+
+```bash
+cd "client(frontend)"
+npm install
+```
+
+### 3. Install backend dependencies
+
+```bash
+cd ../server
+npm install
+```
+
+### 4. Create the backend `.env` file
+
+Inside the `server` folder, create a `.env` file:
+
+```env
+MONGO_URI=your_mongodb_connection_string
+SESSION_SECRET=your_session_secret
+PORT=8080
+CLIENT_ORIGIN=http://localhost:3000
+```
+
+`MONGO_URI` is used to connect the backend to MongoDB. `SESSION_SECRET` is used to sign login sessions. The `PORT` value is optional because the backend defaults to `8080`. `CLIENT_ORIGIN` tells the backend which frontend URL is allowed to send requests.
+
+### 5. Start the backend
+
+From the `server` folder:
+
+```bash
+npm run dev
+```
+
+The backend should run at:
+
+```txt
+http://localhost:8080
+```
+
+### 6. Start the frontend
+
+Open a second terminal and run:
+
+```bash
+cd "client(frontend)"
+npm run dev
+```
+
+The frontend should run at:
+
+```txt
+http://localhost:3000
+```
+
+The admin page should run at:
+
+```txt
+http://localhost:3000/admin/
+```
+
+## Deployment Notes
+
+For deployment, the frontend can be built with:
+
+```bash
+cd "client(frontend)"
+npm run build
+```
+
+The backend needs a deployed Node.js environment with the same environment variables:
+
+```env
+MONGO_URI
+SESSION_SECRET
+PORT
+CLIENT_ORIGIN
+```
+
+The frontend API URLs may need to be updated from `http://localhost:8080` to the deployed backend URL. The backend `CLIENT_ORIGIN` should also be updated to the deployed frontend URL.
+
+## Working Sections
+
+### Frontend
+
+- Home page is set up with project branding and styling.
+- Navbar is set up with links to main pages.
+- Login page works as a form and asks for both username and password.
+- Signup page exists and is connected through the `/signup` route.
+- Login page links to signup with "Don't have an account? Sign up here".
+- Search page route exists and is ready for future professor/course search work.
+- Admin page exists at `/admin/` for the required admin entry point.
+
+### Backend
+
+- Express server is set up in `server.js`.
+- MongoDB connection is set up in `db.js` using Mongoose and environment variables.
+- User model is set up in `server/models/User.js`.
+- Professor model has been started in `professor.js`.
+- Signup route creates users and hashes passwords with bcrypt.
+- Login route checks username and password.
+- Logout route exists on the backend.
+- `/me` route checks the currently logged-in user.
+- Sessions are configured with Express Session.
+- CORS is configured so the frontend can send requests to the backend.
+
+## Features Still In Progress
+
+- Frontend logout button/action still needs to be added.
+- Professor search needs to be connected to backend data.
+- Review/rating models and routes still need to be added.
+- Professor profile pages still need to be built.
+- Admin moderation features still need to be built.
+- Google sign-in is planned but not implemented yet.
+- Recommendation features are planned but not implemented yet.
+
+## Original Project Goals
+
+- Allow students to rate professors and courses.
+- Support user accounts and roles such as student, professor, and admin.
+- Store professor information such as name, department, and courses taught.
+- Support multi-metric ratings such as difficulty, quality, and engagement.
+- Allow students to search by professor, department, or course.
+- Eventually support admin moderation and professor profile claiming.
