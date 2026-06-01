@@ -1,20 +1,39 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const professorSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true
-    },
-    department: {
-        type: String,
-        required: true
-    },
-    courses: [{
-        type: String,
-        ref: "Course",
-        required: true
-    }]
+  netId: {
+    type: String,
+    required: true,
+    unique: true,
+    sparse: true,
+    trim: true,
+  },
+  name: {
+    type: String,
+    required: true,
+  },
+  department: {
+    type: String,
+    default: "",
+  },
+  organization: {
+    type: String,
+    default: "",
+  },
+  title: {
+    type: String,
+    default: "",
+  },
+  profileUrl: {
+    type: String,
+    required: true,
+  },
+  courses: [{
+    type: String,
+  }],
 });
 
 const Professor = mongoose.model("Professor", professorSchema);
-export default Professor;
+
+module.exports = Professor;
+

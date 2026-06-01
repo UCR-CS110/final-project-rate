@@ -1,53 +1,36 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+export default function Signup() {
+  async function signup(event) {
+    event.preventDefault();
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
 
-function Signup() {
-  const { register, handleSubmit } = useForm();
-  const [errorMessage, setErrorMessage] = useState("");
+    await fetch(
+      'http://localhost:8080/signup',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
 
-  const onSubmit = async (data) => {
-    try {
-      setErrorMessage("");
-
-      const response = await fetch("http://localhost:8080/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        window.location.href = "/";
-      } else {
-        setErrorMessage(result.message || "Signup failed");
+        body: JSON.stringify({
+          username: username,
+          password: password
+        })
       }
-    } catch (error) {
-      setErrorMessage("Signup request failed");
-      console.error("Signup request failed", error);
-    }
-  };
+    );
+
+    window.location.href = '/';
+
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <div className="container">
-        <label>
-          Username:
-          <input type="text" {...register("username")} />
-        </label>
-        <label>
-          Password:
-          <input type="password" {...register("password")} />
-        </label>
-        {errorMessage && <p className="form-error">{errorMessage}</p>}
-        <button type="submit">Create Account</button>
-        <p className="auth-switch">
-          Already have an account? <a href="/login">Log in here</a>
-        </p>
-      </div>
-    </form>
+    <div>
+      <h1>Signup</h1>
+      <form onSubmit={signup}>
+        <input id="username"   placeholder="Username"/>
+        <input  id="password"  type="password"   placeholder="Passwordd" />
+        <button>  Signup  </button>
+      </form>
+    </div>
   );
 }
-
-export default Signup;

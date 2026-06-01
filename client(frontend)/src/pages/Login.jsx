@@ -1,54 +1,55 @@
+import { useState } from 'react';
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+export default function Login() {
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-function Login() {
-  const { register, handleSubmit } = useForm();
-  const [errorMessage, setErrorMessage] = useState("");
+  async function login(event) {
+    event.preventDefault();
+    setError('');
+    setIsSubmitting(true);
 
-  const onSubmit = async (data) => {
+    const form = new FormData(event.currentTarget);
+
     try {
-      setErrorMessage("");
-
-      const response = await fetch("http://localhost:8080/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
+      const response = await fetch('http://localhost:8080/login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          username: form.get('username'),
+          password: form.get('password')
+        }),
       });
 
-      const result = await response.json();
+      const data = await response.json();
 
-      if (response.ok && result.success) {
-        window.location.href = "/";
+      if (data.success) {
+        window.location.href = '/search';
       } else {
-        setErrorMessage(result.message || "Login failed");
+        setError(data.message || 'Login failed');
       }
-    } catch (error) {
-      setErrorMessage("Login request failed");
-      console.error("Login request failed", error);
+    } catch {
+      setError('Could not connect to the server');
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <div className="container">
-        <label>
-          Username:
-          <input type="text" {...register("username", { required: true })} />
-        </label>
-        <label>
-          Password:
-          <input type="password" {...register("password", { required: true })} />
-        </label>
-        {errorMessage && <p className="form-error">{errorMessage}</p>}
-        <button type="submit">Log In</button>
-        <p className="auth-switch">
-          Don't have an account? <a href="/signup">Sign up here</a>
-        </p>
-      </div>
-    </form>
-  )
-}
+    <div className="container">
+        <h1>Login</h1>
+        <form onSubmit={login}>
+            <input name="username" placeholder="Username" />
+            <input name="password" type="password" placeholder="Password"/>
+            <button disabled={isSubmitting}>
+              {isSubmitting ? 'Logging in...' : 'Login'}
+            </button>
+      </form>
+      { error && <p className="form-error">{error}</p> }
+      <br />
 
-export default Login;
+      <a href="/signup">   Signup </a>
+    </div>
+  );
+}
