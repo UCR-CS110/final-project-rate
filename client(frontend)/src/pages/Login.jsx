@@ -49,7 +49,7 @@ export default function Login() {
       { error && <p className="form-error">{error}</p> }
       <br />
 
-      <a href="/signup">   Signup </a>
+      <button onClick={() => (window.location.href = '/signup')}>Signup</button>
     </div>
   );
 }

@@ -25,12 +25,14 @@ export default function Signup() {
 
   return (
     <div>
+      <div className="container">
       <h1>Signup</h1>
       <form onSubmit={signup}>
         <input id="username"   placeholder="Username"/>
-        <input  id="password"  type="password"   placeholder="Passwordd" />
+        <input  id="password"  type="password"   placeholder="Password" />
         <button>  Signup  </button>
       </form>
+      </div>
     </div>
   );
 }

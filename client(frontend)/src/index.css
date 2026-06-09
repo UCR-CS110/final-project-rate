@@ -47,12 +47,28 @@
   border-width: 2px;
   padding: .1rem 1rem;
   margin-top: .5rem;
-  margin-left: 3.5rem;
+  margin-left: 9.2rem;
 }
 
 .navbar a.search:hover {
   background-color: white;
   color: #245c23;
+}
+.about {
+  font-family: 'Playfair Display';
+  color: black;
+  font-size: 1.5rem;
+  font-weight: 300;
+  margin-left: 6rem;
+  margin-right: 6rem;
+  text-indent: 50px;
+}
+h1 {
+  font-family: 'Playfair Display';
+  color: black;
+  font-size: 3rem;
+  font-weight: 300;
+  text-align: center;
 }
 
 .navbar li:hover
@@ -61,21 +77,22 @@
 }
 .titleMain{
   font-family: 'Playfair Display';
-  color: white;
   font-size: 8rem;
   font-weight: 300;
-  text-shadow: 6px 5px rgba(0, 0, 0, 0.479);
+  text-shadow: 4px 3px rgba(0, 0, 0, 0.479);
   display: flex;
   justify-content: center;
   align-items: center;
   height: 55vh;
+  color:white;
 }
+
 .titleSub{
   font-family: 'Playfair Display';
   color: white;
   font-size: 3rem;
   font-weight: 300;
-  text-shadow: 4px 3px rgba(0, 0, 0, 0.479);
+  text-shadow: 3px 2px rgba(0, 0, 0, 0.479);
   display: flex;
   justify-content: center;
   margin-top: -190px;
@@ -88,7 +105,6 @@
   font-family: 'Playfair Display';
   color: black;
   font-size: 2rem;
-  justify-content: center;
   align-items: center;
   min-height: 100vh;
   padding-top: 5rem;
