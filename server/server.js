@@ -257,6 +257,27 @@ app.get("/professors", async (req, res) => {
   }
 });
 
+app.get("/professors/:professorId", async (req, res) => {
+  try {
+    const professor = await Professor.findById(req.params.professorId);
+
+    if (!professor) {
+      return res.status(404).json({
+        success: false,
+        message: "Professor not found",
+      });
+    }
+
+    return res.json(professor);
+  } catch (error) {
+    console.error("Fetching professor failed", error);
+    return res.status(500).json({
+      success: false,
+      message: "Fetching professor failed",
+    });
+  }
+});
+
 app.get("/reviews", async (req, res) => {
   try {
     const filter = req.query.professorId

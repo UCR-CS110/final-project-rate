@@ -1,8 +1,10 @@
 const mongoose = require("mongoose");
 
 async function connectDB() {
-  await mongoose.connect(process.env.MONGO_URI);
-  console.log("MongoDB Atlas Connected");
+  const dbName = process.env.MONGO_DB_NAME || "rate_dev";
+
+  await mongoose.connect(process.env.MONGO_URI, { dbName });
+  console.log(`MongoDB Atlas Connected to ${dbName}`);
 }
 
 module.exports = connectDB;
