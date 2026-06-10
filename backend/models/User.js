@@ -30,6 +30,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    major: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    year: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    helpfulScore: {
+      type: Number,
+      default: 0,
+    },
     role: {
       type: String,
       enum: ["student", "professor", "admin"],

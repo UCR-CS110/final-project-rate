@@ -89,6 +89,9 @@ export default function Profile() {
             </div>
             <p><strong>Username:</strong> {user.username}</p>
             <p><strong>Role:</strong> {user.role}</p>
+            <p><strong>Helpful score:</strong> {user.helpfulScore || 0}</p>
+            {user.major && <p><strong>Major:</strong> {user.major}</p>}
+            {user.year && <p><strong>Year:</strong> {user.year}</p>}
           </>
         )}
       </section>
@@ -111,6 +114,11 @@ export default function Profile() {
                 {review.professor?.name || 'Unknown professor'}
               </a>
               <span>{review.rating} / 5 stars</span>
+            </div>
+            <div>
+              <span>Difficulty {review.difficulty || review.rating}</span>
+              <span>Quality {review.quality || review.rating}</span>
+              <span>Engagement {review.engagement || review.rating}</span>
             </div>
             <p>{review.text}</p>
           </article>

@@ -3,6 +3,8 @@ import { API_URL } from '../api.js';
 
 export default function Search() {
   const [search, setSearch] = useState('');
+  const [department, setDepartment] = useState('');
+  const [course, setCourse] = useState('');
   const [professors, setProfessors] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -13,7 +15,10 @@ export default function Search() {
 
   useEffect(() => {
     const trimmedSearch = search.trim();
-    if (!trimmedSearch) {
+    const trimmedDepartment = department.trim();
+    const trimmedCourse = course.trim();
+
+    if (!trimmedSearch && !trimmedDepartment && !trimmedCourse) {
       setProfessors([]);
       setError('');
       setIsLoading(false);
@@ -27,8 +32,19 @@ export default function Search() {
       setError('');
 
       try {
+        const params = new URLSearchParams();
+        if (trimmedSearch) {
+          params.set('search', trimmedSearch);
+        }
+        if (trimmedDepartment) {
+          params.set('department', trimmedDepartment);
+        }
+        if (trimmedCourse) {
+          params.set('course', trimmedCourse);
+        }
+
         const response = await fetch(
-          `${API_URL}/professors?search=${encodeURIComponent(trimmedSearch)}`,
+          `${API_URL}/professors?${params.toString()}`,
           { signal: controller.signal }
         );
         const data = await response.json();
@@ -52,25 +68,43 @@ export default function Search() {
 
     searchProfessors();
     return () => controller.abort();
-  }, [search]);
+  }, [search, department, course]);
 
   return (
     <div className="container search-page">
       <h1>Search Professors</h1>
-      <label>
-        Professor name
-        <input
-          autoFocus
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Start typing a professor's name"
-        />
-      </label>
+      <div className="search-filters">
+        <label>
+          Name, department, title, or course
+          <input
+            autoFocus
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Try CS, MATH, Smith, or CS010"
+          />
+        </label>
+        <label>
+          Department
+          <input
+            value={department}
+            onChange={(event) => setDepartment(event.target.value)}
+            placeholder="Department"
+          />
+        </label>
+        <label>
+          Course code
+          <input
+            value={course}
+            onChange={(event) => setCourse(event.target.value)}
+            placeholder="Course"
+          />
+        </label>
+      </div>
 
       {isLoading && <p className="search-status">Searching...</p>}
       {error && <p className="form-error">{error}</p>}
-      {!isLoading && search.trim() && !error && professors.length === 0 && (
+      {!isLoading && (search.trim() || department.trim() || course.trim()) && !error && professors.length === 0 && (
         <p className="search-status">No professors found.</p>
       )}
 
@@ -81,6 +115,8 @@ export default function Search() {
               <strong>{professor.name}</strong>
               <span>{professor.department || professor.organization || 'UCR'}</span>
               {professor.title && <span>{professor.title}</span>}
+              {professor.courses?.length > 0 && <span>{professor.courses.slice(0, 4).join(', ')}</span>}
+              {professor.stats?.averageRating && <span>{professor.stats.averageRating} / 5</span>}
             </button>
           </li>
         ))}

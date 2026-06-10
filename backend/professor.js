@@ -31,9 +31,27 @@ const professorSchema = new mongoose.Schema({
   courses: [{
     type: String,
   }],
+  claimStatus: {
+    type: String,
+    enum: ["none", "pending", "approved", "rejected"],
+    default: "none",
+  },
+  claimRequestedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+  claimedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+  claimNote: {
+    type: String,
+    default: "",
+  },
 });
 
 const Professor = mongoose.model("Professor", professorSchema);
 
 module.exports = Professor;
-

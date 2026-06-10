@@ -60,6 +60,9 @@ function publicUser(user) {
     username: user.username,
     role: user.role,
     profilePicture: user.profilePicture,
+    major: user.major,
+    year: user.year,
+    helpfulScore: user.helpfulScore,
   };
 }
 
@@ -248,15 +251,167 @@ function belongsToUser(item, user) {
   return item.authorId.equals(user._id);
 }
 
-function serializeReview(review, user) {
+function canModerate(user) {
+  return user?.role === "admin";
+}
+
+function canManageProfessor(professor, user) {
+  return canModerate(user) || (
+    professor.claimStatus === "approved" &&
+    professor.claimedBy?.toString() === user?._id.toString()
+  );
+}
+
+function requireRole(role) {
+  return (req, res, next) => {
+    if (req.user?.role !== role) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have permission to do that",
+      });
+    }
+
+    return next();
+  };
+}
+
+function numberFromRating(value) {
+  const rating = Number(value);
+  return Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null;
+}
+
+function readRatings(body) {
+  const difficulty = numberFromRating(body.difficulty ?? body.rating);
+  const quality = numberFromRating(body.quality ?? body.rating);
+  const engagement = numberFromRating(body.engagement ?? body.rating);
+
+  if (!difficulty || !quality || !engagement) {
+    return null;
+  }
+
   return {
-    ...review.toObject(),
-    canEdit: Boolean(user && belongsToUser(review, user)),
+    difficulty,
+    quality,
+    engagement,
+    rating: Math.round(((difficulty + quality + engagement) / 3) * 10) / 10,
+  };
+}
+
+function readTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return tags
+    .filter((tag) => typeof tag === "string")
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function userVote(review, user) {
+  if (!user) {
+    return null;
+  }
+
+  const userId = user._id.toString();
+  if (review.upvotes.some((id) => id.toString() === userId)) {
+    return "up";
+  }
+
+  if (review.downvotes.some((id) => id.toString() === userId)) {
+    return "down";
+  }
+
+  return null;
+}
+
+function serializeReview(review, user) {
+  const reviewObject = review.toObject();
+  const upvoteCount = review.upvotes?.length || 0;
+  const downvoteCount = review.downvotes?.length || 0;
+
+  return {
+    ...reviewObject,
+    difficulty: review.difficulty || review.rating,
+    quality: review.quality || review.rating,
+    engagement: review.engagement || review.rating,
+    upvoteCount,
+    downvoteCount,
+    helpfulScore: upvoteCount - downvoteCount,
+    userVote: userVote(review, user),
+    canEdit: Boolean(user && (belongsToUser(review, user) || canModerate(user))),
+    canModerate: Boolean(canModerate(user)),
     replies: review.replies.map((reply) => ({
       ...reply.toObject(),
-      canEdit: Boolean(user && belongsToUser(reply, user)),
+      canEdit: Boolean(user && (belongsToUser(reply, user) || canModerate(user))),
     })),
   };
+}
+
+function activeReviewFilter(extraFilter = {}) {
+  return {
+    ...extraFilter,
+    status: { $ne: "deleted" },
+  };
+}
+
+function getReviewStats(reviews) {
+  if (reviews.length === 0) {
+    return {
+      averageRating: null,
+      averageDifficulty: null,
+      averageQuality: null,
+      averageEngagement: null,
+      reviewCount: 0,
+      topTags: [],
+    };
+  }
+
+  const totals = reviews.reduce(
+    (sum, review) => ({
+      rating: sum.rating + review.rating,
+      difficulty: sum.difficulty + (review.difficulty || review.rating),
+      quality: sum.quality + (review.quality || review.rating),
+      engagement: sum.engagement + (review.engagement || review.rating),
+    }),
+    { rating: 0, difficulty: 0, quality: 0, engagement: 0 }
+  );
+  const tagCounts = new Map();
+  reviews.forEach((review) => {
+    review.tags.forEach((tag) => {
+      tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+    });
+  });
+
+  return {
+    averageRating: Number((totals.rating / reviews.length).toFixed(1)),
+    averageDifficulty: Number((totals.difficulty / reviews.length).toFixed(1)),
+    averageQuality: Number((totals.quality / reviews.length).toFixed(1)),
+    averageEngagement: Number((totals.engagement / reviews.length).toFixed(1)),
+    reviewCount: reviews.length,
+    topTags: [...tagCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([tag, count]) => ({ tag, count })),
+  };
+}
+
+async function professorWithStats(professor) {
+  const reviews = await Review.find(activeReviewFilter({ professorId: professor._id.toString() }));
+  return {
+    ...professor.toObject(),
+    stats: getReviewStats(reviews),
+  };
+}
+
+async function refreshHelpfulScore(userId) {
+  const reviews = await Review.find({ authorId: userId });
+  const helpfulScore = reviews.reduce(
+    (sum, review) => sum + (review.upvotes.length - review.downvotes.length),
+    0
+  );
+  await User.findByIdAndUpdate(userId, { helpfulScore });
 }
 
 async function reviewsWithProfessors(userId, currentUser) {
@@ -290,19 +445,46 @@ app.get("/professors", async (req, res) => {
     const search = typeof req.query.search === "string"
       ? req.query.search.trim()
       : "";
+    const department = typeof req.query.department === "string"
+      ? req.query.department.trim()
+      : "";
+    const course = typeof req.query.course === "string"
+      ? req.query.course.trim()
+      : "";
 
-    if (!search) {
+    if (!search && !department && !course) {
       return res.json([]);
     }
 
-    const searchPattern = `(^|\\s)${escapeRegExp(search)}`;
-    const professors = await Professor.find({
-      name: { $regex: searchPattern, $options: "i" },
-    })
+    const filters = [];
+    if (search) {
+      const searchPattern = escapeRegExp(search);
+      filters.push({
+        $or: [
+          { name: { $regex: searchPattern, $options: "i" } },
+          { department: { $regex: searchPattern, $options: "i" } },
+          { organization: { $regex: searchPattern, $options: "i" } },
+          { title: { $regex: searchPattern, $options: "i" } },
+          { courses: { $regex: searchPattern, $options: "i" } },
+        ],
+      });
+    }
+    if (department) {
+      filters.push({ department: { $regex: escapeRegExp(department), $options: "i" } });
+    }
+    if (course) {
+      filters.push({ courses: { $regex: escapeRegExp(course), $options: "i" } });
+    }
+
+    const professors = await Professor.find(filters.length ? { $and: filters } : {})
       .sort({ name: 1 })
       .limit(20);
 
-    return res.json(professors);
+    const enrichedProfessors = await Promise.all(
+      professors.map((professor) => professorWithStats(professor))
+    );
+
+    return res.json(enrichedProfessors);
   } catch (error) {
     console.error("Searching professors failed", error);
     return res.status(500).json({
@@ -323,13 +505,81 @@ app.get("/professors/:professorId", async (req, res) => {
       });
     }
 
-    return res.json(professor);
+    return res.json(await professorWithStats(professor));
   } catch (error) {
     console.error("Fetching professor failed", error);
     return res.status(500).json({
       success: false,
       message: "Fetching professor failed",
     });
+  }
+});
+
+app.get("/professors/:professorId/similar", async (req, res) => {
+  try {
+    const professor = await Professor.findById(req.params.professorId);
+
+    if (!professor) {
+      return res.status(404).json({
+        success: false,
+        message: "Professor not found",
+      });
+    }
+
+    const filters = [{ _id: { $ne: professor._id } }];
+    const matchers = [];
+    if (professor.department) {
+      matchers.push({ department: professor.department });
+    }
+    if (professor.courses.length > 0) {
+      matchers.push({ courses: { $in: professor.courses } });
+    }
+
+    if (matchers.length === 0) {
+      return res.json([]);
+    }
+
+    filters.push({ $or: matchers });
+    const similar = await Professor.find({ $and: filters }).limit(12);
+    const enriched = await Promise.all(similar.map((item) => professorWithStats(item)));
+
+    return res.json(
+      enriched
+        .sort((a, b) => (b.stats.averageRating || 0) - (a.stats.averageRating || 0))
+        .slice(0, 6)
+    );
+  } catch (error) {
+    console.error("Fetching similar professors failed", error);
+    return res.status(500).json({
+      success: false,
+      message: "Fetching similar professors failed",
+    });
+  }
+});
+
+app.post("/professors/:professorId/claim", checkAuth, async (req, res) => {
+  try {
+    const professor = await Professor.findById(req.params.professorId);
+    if (!professor) {
+      return res.status(404).json({ success: false, message: "Professor not found" });
+    }
+
+    if (professor.claimStatus === "approved") {
+      return res.status(409).json({
+        success: false,
+        message: "This professor profile has already been claimed",
+      });
+    }
+
+    professor.claimStatus = "pending";
+    professor.claimRequestedBy = req.user._id;
+    professor.claimNote = requiredText(req.body.note) || "";
+    await professor.save();
+
+    return res.status(201).json(await professorWithStats(professor));
+  } catch (error) {
+    console.error("Claiming professor failed", error);
+    return res.status(500).json({ success: false, message: "Claim request failed" });
   }
 });
 
@@ -366,7 +616,7 @@ app.get("/reviews", async (req, res) => {
     const filter = req.query.professorId
       ? { professorId: req.query.professorId }
       : {};
-    const reviews = await Review.find(filter).sort({ createdAt: -1 });
+    const reviews = await Review.find(activeReviewFilter(filter)).sort({ createdAt: -1 });
     const user = req.session.userId
       ? await User.findById(req.session.userId)
       : null;
@@ -397,13 +647,18 @@ app.post("/reviews", checkAuth, async (req, res) => {
   try {
     const professorId = requiredText(req.body.professorId);
     const text = requiredText(req.body.text);
-    const rating = Number(req.body.rating);
+    const ratings = readRatings(req.body);
 
-    if (!professorId || !text || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+    if (!professorId || !text || !ratings) {
       return res.status(400).json({
         success: false,
-        message: "Professor, review text, and a rating from 1 to 5 are required",
+        message: "Professor, review text, and 1 to 5 ratings for difficulty, quality, and engagement are required",
       });
+    }
+
+    const professor = await Professor.findById(professorId);
+    if (!professor) {
+      return res.status(404).json({ success: false, message: "Professor not found" });
     }
 
     const review = await Review.create({
@@ -411,7 +666,8 @@ app.post("/reviews", checkAuth, async (req, res) => {
       authorId: req.user._id,
       username: req.user.username,
       text,
-      rating,
+      ...ratings,
+      tags: readTags(req.body.tags),
       replies: [],
     });
 
@@ -440,16 +696,20 @@ app.put("/reviews/:reviewId", checkAuth, async (req, res) => {
     }
 
     const text = requiredText(req.body.text);
-    const rating = Number(req.body.rating);
-    if (!text || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+    const ratings = readRatings(req.body);
+    if (!text || !ratings) {
       return res.status(400).json({
         success: false,
-        message: "Review text and a rating from 1 to 5 are required",
+        message: "Review text and 1 to 5 ratings for difficulty, quality, and engagement are required",
       });
     }
 
     review.text = text;
-    review.rating = rating;
+    review.difficulty = ratings.difficulty;
+    review.quality = ratings.quality;
+    review.engagement = ratings.engagement;
+    review.rating = ratings.rating;
+    review.tags = readTags(req.body.tags);
     await review.save();
     return res.json(serializeReview(review, req.user));
   } catch (error) {
@@ -468,14 +728,18 @@ app.delete("/reviews/:reviewId", checkAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: "Review not found" });
     }
 
-    if (!belongsToUser(review, req.user)) {
+    if (!belongsToUser(review, req.user) && !canModerate(req.user)) {
       return res.status(403).json({
         success: false,
         message: "You can only delete your own reviews",
       });
     }
 
-    await review.deleteOne();
+    review.status = "deleted";
+    review.moderationReason = canModerate(req.user)
+      ? requiredText(req.body?.reason) || "Deleted by admin"
+      : "";
+    await review.save();
     return res.json({ success: true });
   } catch (error) {
     console.error("Deleting review failed", error);
@@ -483,6 +747,60 @@ app.delete("/reviews/:reviewId", checkAuth, async (req, res) => {
       success: false,
       message: "Deleting review failed",
     });
+  }
+});
+
+app.post("/reviews/:reviewId/vote", checkAuth, async (req, res) => {
+  try {
+    const review = await Review.findById(req.params.reviewId);
+    if (!review || review.status === "deleted") {
+      return res.status(404).json({ success: false, message: "Review not found" });
+    }
+
+    const vote = req.body.vote;
+    if (!["up", "down", "none"].includes(vote)) {
+      return res.status(400).json({ success: false, message: "Vote must be up, down, or none" });
+    }
+
+    const userId = req.user._id.toString();
+    review.upvotes = review.upvotes.filter((id) => id.toString() !== userId);
+    review.downvotes = review.downvotes.filter((id) => id.toString() !== userId);
+
+    if (vote === "up") {
+      review.upvotes.push(req.user._id);
+    }
+    if (vote === "down") {
+      review.downvotes.push(req.user._id);
+    }
+
+    await review.save();
+    await refreshHelpfulScore(review.authorId);
+    return res.json(serializeReview(review, req.user));
+  } catch (error) {
+    console.error("Voting on review failed", error);
+    return res.status(500).json({ success: false, message: "Voting on review failed" });
+  }
+});
+
+app.post("/reviews/:reviewId/flag", checkAuth, async (req, res) => {
+  try {
+    const review = await Review.findById(req.params.reviewId);
+    if (!review || review.status === "deleted") {
+      return res.status(404).json({ success: false, message: "Review not found" });
+    }
+
+    const userId = req.user._id.toString();
+    if (!review.flaggedBy.some((id) => id.toString() === userId)) {
+      review.flaggedBy.push(req.user._id);
+    }
+    review.status = "flagged";
+    review.moderationReason = requiredText(req.body.reason) || "Flagged by user";
+    await review.save();
+
+    return res.json(serializeReview(review, req.user));
+  } catch (error) {
+    console.error("Flagging review failed", error);
+    return res.status(500).json({ success: false, message: "Flagging review failed" });
   }
 });
 
@@ -561,6 +879,92 @@ app.delete("/reviews/:reviewId/replies/:replyId", checkAuth, async (req, res) =>
   } catch (error) {
     console.error("Deleting reply failed", error);
     return res.status(500).json({ success: false, message: "Deleting reply failed" });
+  }
+});
+
+app.get("/admin/moderation", checkAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const flaggedReviews = await Review.find({ status: "flagged" }).sort({ updatedAt: -1 });
+    const claimRequests = await Professor.find({ claimStatus: "pending" }).sort({ updatedAt: -1 });
+    const requesterIds = claimRequests
+      .map((professor) => professor.claimRequestedBy)
+      .filter(Boolean);
+    const requesters = await User.find({ _id: { $in: requesterIds } });
+    const requesterById = new Map(
+      requesters.map((user) => [user._id.toString(), publicUser(user)])
+    );
+
+    return res.json({
+      flaggedReviews: flaggedReviews.map((review) => serializeReview(review, req.user)),
+      claimRequests: claimRequests.map((professor) => ({
+        ...professor.toObject(),
+        requestedBy: professor.claimRequestedBy
+          ? requesterById.get(professor.claimRequestedBy.toString()) || null
+          : null,
+      })),
+    });
+  } catch (error) {
+    console.error("Fetching admin moderation queue failed", error);
+    return res.status(500).json({
+      success: false,
+      message: "Fetching admin moderation queue failed",
+    });
+  }
+});
+
+app.post("/admin/reviews/:reviewId/status", checkAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const review = await Review.findById(req.params.reviewId);
+    if (!review) {
+      return res.status(404).json({ success: false, message: "Review not found" });
+    }
+
+    const status = req.body.status;
+    if (!["active", "deleted"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Status must be active or deleted" });
+    }
+
+    review.status = status;
+    review.moderationReason = requiredText(req.body.reason) || "";
+    if (status === "active") {
+      review.flaggedBy = [];
+    }
+    await review.save();
+
+    return res.json(serializeReview(review, req.user));
+  } catch (error) {
+    console.error("Updating review status failed", error);
+    return res.status(500).json({ success: false, message: "Updating review status failed" });
+  }
+});
+
+app.post("/admin/professors/:professorId/claim", checkAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const professor = await Professor.findById(req.params.professorId);
+    if (!professor) {
+      return res.status(404).json({ success: false, message: "Professor not found" });
+    }
+
+    const status = req.body.status;
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Status must be approved or rejected" });
+    }
+
+    professor.claimStatus = status;
+    if (status === "approved") {
+      professor.claimedBy = professor.claimRequestedBy;
+      if (professor.claimRequestedBy) {
+        await User.findByIdAndUpdate(professor.claimRequestedBy, { role: "professor" });
+      }
+    } else {
+      professor.claimedBy = null;
+    }
+    await professor.save();
+
+    return res.json(await professorWithStats(professor));
+  } catch (error) {
+    console.error("Updating professor claim failed", error);
+    return res.status(500).json({ success: false, message: "Updating professor claim failed" });
   }
 });
 
