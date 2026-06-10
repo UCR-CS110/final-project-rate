@@ -239,24 +239,43 @@ h1 {
   font-family: 'Playfair Display';
   font-size: 8rem;
   font-weight: 300;
-  text-shadow: 4px 3px rgba(0, 0, 0, 0.479);
   display: flex;
   justify-content: center;
   align-items: center;
   height: 55vh;
-  color:white;
+  color: transparent;
+  -webkit-text-stroke: 1px white;
+  background: url('./assets/back.png');
+  -webkit-background-clip: text;
+  background-position: 0 0;
+  animation: back 20s linear infinite;
+  
 }
 
 .titleSub{
   font-family: 'Playfair Display';
-  color: white;
   font-size: 3rem;
   font-weight: 300;
-  text-shadow: 3px 2px rgba(0, 0, 0, 0.479);
   display: flex;
   justify-content: center;
   margin-top: -190px;
+  color: transparent;
+  -webkit-text-stroke: 1px white;
+  background: url('./assets/back.png');
+  -webkit-background-clip: text;
+  background-position: 0 0;
+  animation: back 20s linear infinite;
 }
+.titleSub:hover, .titleMain:hover{
+  animation-play-state: paused;
+}
+
+@keyframes back {
+  100% {
+    background-position: 2000px 0;
+  }
+}
+
 
 .container {
   display: flex;
