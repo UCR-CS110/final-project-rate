@@ -440,6 +440,77 @@ function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function adminUser(user) {
+  return {
+    ...publicUser(user),
+    email: user.email,
+    hasPassword: Boolean(user.passwordHash),
+    googleLinked: Boolean(user.googleId),
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+}
+
+function readAdminProfileUpdates(body) {
+  const updates = {};
+
+  if (typeof body.username === "string" && body.username.trim()) {
+    updates.username = body.username.trim();
+  }
+
+  if (["student", "professor", "admin"].includes(body.role)) {
+    updates.role = body.role;
+  }
+
+  if (typeof body.major === "string") {
+    updates.major = body.major.trim();
+  }
+
+  if (typeof body.year === "string") {
+    updates.year = body.year.trim();
+  }
+
+  return updates;
+}
+
+async function fetchTextWithRetry(url) {
+  const response = await fetch(url, {
+    headers: { "User-Agent": "Rate-admin-professor-import/1.0" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`UCR request failed (${response.status})`);
+  }
+
+  return response.text();
+}
+
+async function fetchJsonWithRetry(url) {
+  const response = await fetch(url, {
+    headers: { "User-Agent": "Rate-admin-professor-import/1.0" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`UCR request failed (${response.status})`);
+  }
+
+  return response.json();
+}
+
+function getProfileNetIds(sitemap) {
+  const matches = sitemap.matchAll(
+    /<loc>https:\/\/profiles\.ucr\.edu\/app\/home\/profile\/([^<]+)<\/loc>/g
+  );
+
+  return [...matches].map((match) => decodeURIComponent(match[1]));
+}
+
+function getCourses(courses) {
+  return Array.isArray(courses)
+    ? courses.filter((course) => typeof course === "string")
+    : [];
+}
+
 app.get("/professors", async (req, res) => {
   try {
     const search = typeof req.query.search === "string"
@@ -879,6 +950,176 @@ app.delete("/reviews/:reviewId/replies/:replyId", checkAuth, async (req, res) =>
   } catch (error) {
     console.error("Deleting reply failed", error);
     return res.status(500).json({ success: false, message: "Deleting reply failed" });
+  }
+});
+
+app.get("/admin/users", checkAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 });
+    return res.json(users.map(adminUser));
+  } catch (error) {
+    console.error("Fetching admin users failed", error);
+    return res.status(500).json({ success: false, message: "Fetching users failed" });
+  }
+});
+
+app.patch("/admin/users/:userId", checkAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const updates = readAdminProfileUpdates(req.body);
+
+    if (req.params.userId === req.user._id.toString() && updates.role && updates.role !== "admin") {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot remove your own admin role",
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.userId,
+      updates,
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    return res.json(adminUser(user));
+  } catch (error) {
+    console.error("Updating admin user failed", error);
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: "Username or email already exists" });
+    }
+    return res.status(500).json({ success: false, message: "Updating user failed" });
+  }
+});
+
+app.put("/admin/users/:userId/password", checkAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const password = req.body.password;
+
+    if (typeof password !== "string" || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
+    }
+
+    const user = await User.findById(req.params.userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    user.passwordHash = await bcrypt.hash(password, 12);
+    await user.save();
+
+    return res.json({ success: true, user: adminUser(user) });
+  } catch (error) {
+    console.error("Changing user password failed", error);
+    return res.status(500).json({ success: false, message: "Changing password failed" });
+  }
+});
+
+app.delete("/admin/users/:userId", checkAuth, requireRole("admin"), async (req, res) => {
+  try {
+    if (req.params.userId === req.user._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot delete your own account",
+      });
+    }
+
+    const user = await User.findById(req.params.userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    await Review.updateMany(
+      { authorId: user._id },
+      { status: "deleted", moderationReason: "Author account deleted by admin" }
+    );
+    await Review.updateMany(
+      { "replies.authorId": user._id },
+      { $pull: { replies: { authorId: user._id } } }
+    );
+    await Professor.updateMany(
+      { $or: [{ claimedBy: user._id }, { claimRequestedBy: user._id }] },
+      {
+        $set: {
+          claimedBy: null,
+          claimRequestedBy: null,
+          claimStatus: "none",
+          claimNote: "",
+        },
+      }
+    );
+    await user.deleteOne();
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Deleting user failed", error);
+    return res.status(500).json({ success: false, message: "Deleting user failed" });
+  }
+});
+
+app.post("/admin/professors/repopulate", checkAuth, requireRole("admin"), async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.body.limit) || 100, 1), 500);
+    const clearExisting = Boolean(req.body.clearExisting);
+    const sitemap = await fetchTextWithRetry("https://profiles.ucr.edu/sitemap.xml");
+    const netIds = getProfileNetIds(sitemap).slice(0, limit);
+
+    if (clearExisting) {
+      await Professor.deleteMany({});
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const netId of netIds) {
+      try {
+        const profile = await fetchJsonWithRetry(`https://profiles.ucr.edu/api/profile/${netId}`);
+
+        if (profile.primaryAffiliation !== "Faculty" || !profile.name) {
+          skipped += 1;
+        } else {
+          await Professor.updateOne(
+            { netId: profile.netId },
+            {
+              $set: {
+                netId: profile.netId,
+                name: profile.name,
+                department: profile.department || "",
+                organization: profile.organization || "",
+                title: profile.title || "",
+                profileUrl: `https://profiles.ucr.edu/app/home/profile/${profile.netId}`,
+                courses: getCourses(profile.courses),
+              },
+            },
+            { upsert: true }
+          );
+          imported += 1;
+        }
+      } catch (error) {
+        failed += 1;
+      }
+    }
+
+    return res.json({
+      success: true,
+      scanned: netIds.length,
+      imported,
+      skipped,
+      failed,
+      professorCount: await Professor.countDocuments(),
+    });
+  } catch (error) {
+    console.error("Repopulating professors failed", error);
+    return res.status(500).json({
+      success: false,
+      message: "Repopulating professors failed",
+    });
   }
 });
 
