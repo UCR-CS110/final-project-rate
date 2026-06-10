@@ -10,6 +10,8 @@ const User = require("./models/User");
 
 dotenv.config();
 
+const passport = require("./config/passport");
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:3000";
@@ -20,10 +22,14 @@ const ALLOWED_CLIENT_ORIGINS = new Set([
 ]);
 const LOCAL_CLIENT_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/;
 
+function isAllowedClientOrigin(origin) {
+  return ALLOWED_CLIENT_ORIGINS.has(origin) || LOCAL_CLIENT_ORIGIN.test(origin);
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || ALLOWED_CLIENT_ORIGINS.has(origin) || LOCAL_CLIENT_ORIGIN.test(origin)) {
+      if (!origin || isAllowedClientOrigin(origin)) {
         return callback(null, true);
       }
 
@@ -46,12 +52,14 @@ app.use(
     },
   })
 );
+app.use(passport.initialize());
 
 function publicUser(user) {
   return {
     id: user._id,
     username: user.username,
     role: user.role,
+    profilePicture: user.profilePicture,
   };
 }
 
@@ -106,7 +114,7 @@ app.post("/login", async (req, res) => {
     }
 
     const user = await User.findOne({ username });
-    if (!user) {
+    if (!user || !user.passwordHash) {
       return res.status(401).json({
         success: false,
         message: "Invalid username or password",
@@ -135,6 +143,38 @@ app.post("/login", async (req, res) => {
     });
   }
 });
+
+app.get("/auth/google", (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.status(503).json({
+      success: false,
+      message: "Google auth is not configured",
+    });
+  }
+
+  const origin = typeof req.query.origin === "string" && isAllowedClientOrigin(req.query.origin)
+    ? req.query.origin
+    : CLIENT_ORIGIN;
+
+  req.session.googleRedirectOrigin = origin;
+  return passport.authenticate("google", {
+    scope: ["profile", "email"],
+  })(req, res, next);
+});
+
+app.get(
+  "/auth/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: `${CLIENT_ORIGIN}/login?error=google`,
+    session: false,
+  }),
+  (req, res) => {
+    req.session.userId = req.user._id.toString();
+    const redirectOrigin = req.session.googleRedirectOrigin || CLIENT_ORIGIN;
+    delete req.session.googleRedirectOrigin;
+    return res.redirect(`${redirectOrigin}/search`);
+  }
+);
 
 app.post("/logout", (req, res) => {
   req.session.destroy((error) => {
@@ -219,6 +259,20 @@ function serializeReview(review, user) {
   };
 }
 
+async function reviewsWithProfessors(userId, currentUser) {
+  const reviews = await Review.find({ authorId: userId }).sort({ createdAt: -1 });
+  const professorIds = [...new Set(reviews.map((review) => review.professorId))];
+  const professors = await Professor.find({ _id: { $in: professorIds } });
+  const professorById = new Map(
+    professors.map((professor) => [professor._id.toString(), professor])
+  );
+
+  return reviews.map((review) => ({
+    ...serializeReview(review, currentUser),
+    professor: professorById.get(review.professorId) || null,
+  }));
+}
+
 function requiredText(text) {
   if (typeof text !== "string" || !text.trim()) {
     return null;
@@ -241,8 +295,9 @@ app.get("/professors", async (req, res) => {
       return res.json([]);
     }
 
+    const searchPattern = `(^|\\s)${escapeRegExp(search)}`;
     const professors = await Professor.find({
-      name: { $regex: `^${escapeRegExp(search)}`, $options: "i" },
+      name: { $regex: searchPattern, $options: "i" },
     })
       .sort({ name: 1 })
       .limit(20);
@@ -278,6 +333,34 @@ app.get("/professors/:professorId", async (req, res) => {
   }
 });
 
+app.get("/users/:userId/profile", async (req, res) => {
+  try {
+    const profileUser = await User.findById(req.params.userId);
+
+    if (!profileUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const currentUser = req.session.userId
+      ? await User.findById(req.session.userId)
+      : null;
+
+    return res.json({
+      user: publicUser(profileUser),
+      reviews: await reviewsWithProfessors(profileUser._id, currentUser),
+    });
+  } catch (error) {
+    console.error("Fetching user profile failed", error);
+    return res.status(500).json({
+      success: false,
+      message: "Fetching user profile failed",
+    });
+  }
+});
+
 app.get("/reviews", async (req, res) => {
   try {
     const filter = req.query.professorId
@@ -294,6 +377,18 @@ app.get("/reviews", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Fetching reviews failed",
+    });
+  }
+});
+
+app.get("/my-reviews", checkAuth, async (req, res) => {
+  try {
+    return res.json(await reviewsWithProfessors(req.user._id, req.user));
+  } catch (error) {
+    console.error("Fetching my reviews failed", error);
+    return res.status(500).json({
+      success: false,
+      message: "Fetching my reviews failed",
     });
   }
 });

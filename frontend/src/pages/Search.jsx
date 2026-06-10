@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
+import { API_URL } from '../api.js';
 
 export default function Search() {
   const [search, setSearch] = useState('');
   const [professors, setProfessors] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  function openProfessor(professorId) {
+    window.location.href = `/professors/${professorId}`;
+  }
 
   useEffect(() => {
     const trimmedSearch = search.trim();
@@ -23,7 +28,7 @@ export default function Search() {
 
       try {
         const response = await fetch(
-          `http://localhost:8080/professors?search=${encodeURIComponent(trimmedSearch)}`,
+          `${API_URL}/professors?search=${encodeURIComponent(trimmedSearch)}`,
           { signal: controller.signal }
         );
         const data = await response.json();
@@ -72,11 +77,11 @@ export default function Search() {
       <ul className="professor-results">
         {professors.map((professor) => (
           <li key={professor._id}>
-            <strong>{professor.name}</strong>
-            <span>{professor.department}</span>
-            {professor.courses.length > 0 && (
-              <span>{professor.courses.join(', ')}</span>
-            )}
+            <button type="button" onClick={() => openProfessor(professor._id)}>
+              <strong>{professor.name}</strong>
+              <span>{professor.department || professor.organization || 'UCR'}</span>
+              {professor.title && <span>{professor.title}</span>}
+            </button>
           </li>
         ))}
       </ul>

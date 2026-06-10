@@ -1,5 +1,6 @@
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
+const connectDB = require("../db");
 const Professor = require("../professor");
 
 dotenv.config();
@@ -95,7 +96,7 @@ async function importProfessors() {
   console.log(`Found ${netIds.length} public profile URLs to inspect.`);
 
   if (!dryRun) {
-    await mongoose.connect(process.env.MONGO_URI);
+    await connectDB();
   }
 
   let imported = 0;
