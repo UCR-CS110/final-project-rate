@@ -3,6 +3,7 @@ const cors = require("cors");
 const session = require("express-session");
 const bcrypt = require("bcrypt");
 const dotenv = require("dotenv");
+const rateLimit = require("express-rate-limit");
 const connectDB = require("./db");
 const Professor = require("./professor");
 const Review = require("./models/Review");
@@ -40,6 +41,17 @@ app.use(
   })
 );
 app.use(express.json());
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many login attempts. Please try again later.",
+  },
+});
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "dev-session-secret",
@@ -66,7 +78,7 @@ function publicUser(user) {
   };
 }
 
-app.post("/signup", async (req, res) => {
+app.post("/signup", authLimiter, async (req, res) => {
   try {
     const username = req.body.username?.trim();
     const password = req.body.password;
@@ -104,7 +116,7 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-app.post("/login", async (req, res) => {
+app.post("/login", authLimiter, async (req, res) => {
   try {
     const username = req.body.username?.trim();
     const password = req.body.password;
@@ -473,6 +485,24 @@ function readAdminProfileUpdates(body) {
   return updates;
 }
 
+function readOwnProfileUpdates(body) {
+  const updates = {};
+
+  if (typeof body.username === "string" && body.username.trim()) {
+    updates.username = body.username.trim();
+  }
+
+  if (typeof body.major === "string") {
+    updates.major = body.major.trim();
+  }
+
+  if (typeof body.year === "string") {
+    updates.year = body.year.trim();
+  }
+
+  return updates;
+}
+
 async function fetchTextWithRetry(url) {
   const response = await fetch(url, {
     headers: { "User-Agent": "Rate-admin-professor-import/1.0" },
@@ -710,6 +740,49 @@ app.get("/my-reviews", checkAuth, async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Fetching my reviews failed",
+    });
+  }
+});
+
+app.patch("/me", checkAuth, async (req, res) => {
+  try {
+    const updates = readOwnProfileUpdates(req.body);
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Username, major, or year is required",
+      });
+    }
+
+    const oldUsername = req.user.username;
+    Object.assign(req.user, updates);
+    await req.user.save();
+
+    if (updates.username && updates.username !== oldUsername) {
+      await Review.updateMany(
+        { authorId: req.user._id },
+        { username: updates.username }
+      );
+      await Review.updateMany(
+        { "replies.authorId": req.user._id },
+        { $set: { "replies.$[reply].username": updates.username } },
+        { arrayFilters: [{ "reply.authorId": req.user._id }] }
+      );
+    }
+
+    return res.json({
+      success: true,
+      user: publicUser(req.user),
+    });
+  } catch (error) {
+    console.error("Updating profile failed", error);
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: "Username already exists" });
+    }
+    return res.status(500).json({
+      success: false,
+      message: "Updating profile failed",
     });
   }
 });
