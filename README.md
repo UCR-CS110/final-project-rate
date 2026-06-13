@@ -135,8 +135,14 @@ The frontend API URLs may need to be updated from `http://localhost:8080` to the
 
 - Express server is set up in `server.js`.
 - MongoDB connection is set up in `db.js` using Mongoose and environment variables.
-- User model is set up in `server/models/User.js`.
-- Professor model has been started in `professor.js`.
+- User model is set up in `backend/models/User.js`.
+- Professor model is set up in `backend/professor.js` with professor identity, department, title, profile URL, courses taught, and profile-claim status fields.
+- Review model is set up in `backend/models/Review.js` with multi-metric ratings for difficulty, quality, and engagement.
+- Reviews support text comments, tags, replies, upvotes/downvotes, helpful-score calculation, and moderation status fields.
+- Professor search is connected to MongoDB and supports searching by professor name, department, title, organization, or course code.
+- Professor detail data includes aggregate rating statistics and top tags calculated from reviews.
+- Similar professor recommendations are available based on shared department or shared courses.
+- UCR professor import support is available through `backend/scripts/import-ucr-professors.js`.
 - Signup route creates users and hashes passwords with bcrypt.
 - Login route checks username and password.
 - Logout route exists on the backend.
@@ -147,12 +153,12 @@ The frontend API URLs may need to be updated from `http://localhost:8080` to the
 ## Features Still In Progress
 
 - Frontend logout button/action still needs to be added.
-- Professor search needs to be connected to backend data.
-- Review/rating models and routes still need to be added.
+- Professor search can still be improved with more advanced ranking, filtering, and pagination.
+- Review/rating data can still be improved with richer analytics and stricter validation rules.
 - Professor profile pages still need to be built.
 - Admin moderation features still need to be built.
 - Google sign-in is planned but not implemented yet.
-- Recommendation features are planned but not implemented yet.
+- Recommendation features have a first version based on shared department or courses, but can still be improved with better ranking logic.
 
 ## Original Project Goals
 
