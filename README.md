@@ -8,16 +8,26 @@ Rate is a web-based platform for students to share and access information about 
 - Leo Zhou
 - William Chen
 
+##Contributions
+William: Worked on the backend setup created the the main database and server files. In db.js i set up the mongoDB connection using mongoose and env variables so backend can connect to our project db. In server.js i made the express server and added backend implementation such as JSON parsing, CORS, sessions and env variable support. I also worked on authentication for the system such as routes for signing up, logging out(frontend needs to update)& checking current logged in user. I also worked on the user model in user.js by defining the structure for user accounts including username, hashed password, and role. For security, i used bcrypt to hash the passwords before storing them in the database. Also worked abit on professor.js by starting on the professor data model to have it include professor name, department, and course fields. In the frontend I fixed the login page error to also ask for username. Before it was asking only for password. Made the gitignore to prevent our .env and node_mods from being committed(for safety). Lastly made the admin route with admin.jsx that has a basic admin dashboard page and and also include a admin link in the nav bar that can be accessed via the website.
+
+
+Tanner: Created the basic framework for the website using react. Created the home page and about page as well as the foundation for the login page and search page. Created functional header with links to each page. Worked on css sheet and styling for all pages. Implemented video background as well as the logo and title styling.This includes most of the frontend as well as some basic java script to enable the website to function properly.
+
+Leo:
+Worked on designing the MongoDB database structure using Mongoose for the main collections in the project, including Users, Professors, and Reviews. I mainly focused on how the data should be connected so the rating, review, and search features can work smoothly.
+
+
 ## Tools Used
 
-- **Frontend:** React with Vite
-- **Backend:** Node.js with Express.js
+- **Frontend:** React, JavaScript, HTML5 through JSX, CSS3, Vite
+- **Backend:** Node.js, Express.js
 - **Database:** MongoDB Atlas
 - **Database library:** Mongoose
-- **Authentication/session support:** Express Session
-- **Password security:** bcrypt
+- **Authentication:** username/password login, Google OAuth with Passport.js
+- **Sessions:** express-session
+- **Security:** bcrypt, CORS, express-rate-limit, role-based authorization
 - **Environment variables:** dotenv
-- **Frontend forms:** react-hook-form
 - **Development tools:** npm, Git, GitHub
 
 ## Project Structure
@@ -98,6 +108,18 @@ The admin page should run at:
 ```txt
 http://localhost:3000/admin/
 ```
+## Making an Admin User
+
+New users default to the `student` role. To access the admin dashboard, one user must be promoted to `admin` in MongoDB.
+
+Example one-time command from the `backend` folder:
+
+```bash
+node -e 'require("dotenv").config(); const mongoose=require("mongoose"); const User=require("./models/User"); (async()=>{ await mongoose.connect(process.env.MONGO_URI,{dbName:process.env.MONGO_DB_NAME||"test"}); await User.updateOne({username:"YOUR_USERNAME"},{$set:{role:"admin"}}); await mongoose.disconnect(); })().catch(console.error)'
+```
+
+Replace `YOUR_USERNAME` with the username of the account that should become admin.
+
 
 ## Deployment Notes
 
@@ -152,12 +174,9 @@ The frontend API URLs may need to be updated from `http://localhost:8080` to the
 
 ## Features Still In Progress
 
-- Frontend logout button/action still needs to be added.
 - Professor search can still be improved with more advanced ranking, filtering, and pagination.
 - Review/rating data can still be improved with richer analytics and stricter validation rules.
 - Professor profile pages still need to be built.
-- Admin moderation features still need to be built.
-- Google sign-in is planned but not implemented yet.
 - Recommendation features have a first version based on shared department or courses, but can still be improved with better ranking logic.
 
 ## Original Project Goals
