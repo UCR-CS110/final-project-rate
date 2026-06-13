@@ -1,3 +1,6 @@
+<img width="1444" height="707" alt="Screenshot 2026-06-12 at 9 34 22 PM" src="https://github.com/user-attachments/assets/2a46da0e-8b1f-4778-b8e8-342d1436d898" />
+<img width="1443" height="716" alt="Screenshot 2026-06-12 at 9 34 06 PM" src="https://github.com/user-attachments/assets/8c31bad5-20e2-4bab-95b0-d8c9bbf4f9d2" />
+
 # Rate
 
 Rate is a web-based platform for students to share and access information about professors and courses. The goal is to help students make better course selection decisions by showing professor information, course information, ratings, and peer reviews in one place.
@@ -8,7 +11,7 @@ Rate is a web-based platform for students to share and access information about 
 - Leo Zhou
 - William Chen
 
-##Contributions
+## Contributions
 William: Worked on the backend setup created the the main database and server files. In db.js i set up the mongoDB connection using mongoose and env variables so backend can connect to our project db. In server.js i made the express server and added backend implementation such as JSON parsing, CORS, sessions and env variable support. I also worked on authentication for the system such as routes for signing up, logging out(frontend needs to update)& checking current logged in user. I also worked on the user model in user.js by defining the structure for user accounts including username, hashed password, and role. For security, i used bcrypt to hash the passwords before storing them in the database. Also worked abit on professor.js by starting on the professor data model to have it include professor name, department, and course fields. In the frontend I fixed the login page error to also ask for username. Before it was asking only for password. Made the gitignore to prevent our .env and node_mods from being committed(for safety). Lastly made the admin route with admin.jsx that has a basic admin dashboard page and and also include a admin link in the nav bar that can be accessed via the website.
 
 
